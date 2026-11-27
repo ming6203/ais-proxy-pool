@@ -38,7 +38,7 @@
 ### 1. 拉取本仓库
 
 ```bash
-git clone https://github.com/ashita-MT/ais-proxy-pool.git ais-proxy-pool
+git clone https://github.com/ming6203/ais-proxy-pool.git ais-proxy-pool
 ```
 
 ### 2. 检查并应用
