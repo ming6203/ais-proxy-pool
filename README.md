@@ -39,6 +39,8 @@
 
 ```bash
 git clone https://github.com/ming6203/ais-proxy-pool.git ais-proxy-pool
+# 国内网络无法直连 HTTPS 时可用 SSH（或先为 git 配置代理）
+# git clone git@github.com:ming6203/ais-proxy-pool.git ais-proxy-pool
 ```
 
 ### 2. 检查并应用
