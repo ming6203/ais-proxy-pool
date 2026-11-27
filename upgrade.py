@@ -23,9 +23,9 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parent
 UPSTREAM = "https://github.com/DeconstructedCube/aistudio-api"
-BASE = "a28a6c5b0790c4efa4495de8393631bf1ae814b1"
+BASE = "c770aaf3c76a10dbcd6584d033bb76ffa80ccd27"
 PREVIOUS_PATCH = "Mooece/ais-pg-upgrade"
-PREVIOUS_RELEASE = "20261123-full-reply-tools-8c371879"
+PREVIOUS_RELEASE = "20261126-c770-compat"
 MARKERS = (
     "main.py",
     "pyproject.toml",

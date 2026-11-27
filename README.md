@@ -19,9 +19,11 @@
 
 | 层级 | 来源 | 版本 |
 |---|---|---|
-| 原项目 | [DeconstructedCube/aistudio-api](https://github.com/DeconstructedCube/aistudio-api) | 提交 `a28a6c5b0790c4efa4495de8393631bf1ae814b1` |
-| 前置补丁 | [Mooece/ais-pg-upgrade](https://github.com/Mooece/ais-pg-upgrade) | release `20261123-full-reply-tools-8c371879`（`bd8893d`），已 `apply` |
+| 原项目 | [DeconstructedCube/aistudio-api](https://github.com/DeconstructedCube/aistudio-api) | 提交 `c770aaf3c76a10dbcd6584d033bb76ffa80ccd27` |
+| 前置补丁 | [Mooece/ais-pg-upgrade](https://github.com/Mooece/ais-pg-upgrade) | release `20261126-c770-compat`（`d486455`），已 `apply` |
 | 本升级包 | 本仓库 | 见 `patch-manifest.json` 的 `release_id` |
+
+> **版本对应**：`v1.1.0` 对应上表（`c770aaf` + `20261126-c770-compat`）；旧的 `v1.0.0` 对应 `a28a6c5` + `20261123-full-reply-tools-8c371879`，仍停留在旧基线的安装请检出 `v1.0.0` tag。详见 [CHANGELOG.md](./CHANGELOG.md)。
 
 清单对每个被修改文件都记录了该基线的 SHA-256。若目标文件与基线不一致（例如先升级了 `ais-pg-upgrade`、手工改过代码或重新构建过前端），`check`/`apply` 会拒绝并指出冲突文件。
 

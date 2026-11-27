@@ -1,7 +1,7 @@
 # 来源与致谢
 
-- 原项目：[DeconstructedCube/aistudio-api](https://github.com/DeconstructedCube/aistudio-api)。本升级包固定对照提交 `a28a6c5b0790c4efa4495de8393631bf1ae814b1`。
-- 前置补丁：[Mooece/ais-pg-upgrade](https://github.com/Mooece/ais-pg-upgrade)。本升级包以该仓库 release `20261123-full-reply-tools-8c371879`（提交 `bd8893d`）应用后的目录为基线；安装前必须先完成该补丁。
+- 原项目：[DeconstructedCube/aistudio-api](https://github.com/DeconstructedCube/aistudio-api)。本升级包固定对照提交 `c770aaf3c76a10dbcd6584d033bb76ffa80ccd27`。
+- 前置补丁：[Mooece/ais-pg-upgrade](https://github.com/Mooece/ais-pg-upgrade)。本升级包以该仓库 release `20261126-c770-compat`（提交 `d486455`）应用后的目录为基线；安装前必须先完成该补丁。
 
 感谢 DeconstructedCube、Mooece 与原项目贡献者。本仓库的差异文件中包含上述项目的既有实现，前端构建产物包含其依赖的第三方代码；保留原有版权与许可证声明。原项目 README 将许可声明为 MIT，本仓库不改变该声明，也不代表原项目或前置补丁作者。
 

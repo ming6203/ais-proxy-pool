@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
-  "release_id": "20261127-proxy-pool-3125b1ff",
+  "release_id": "20261127-proxy-pool-c770-b6e5b4f0",
   "upstream": {
     "url": "https://github.com/DeconstructedCube/aistudio-api",
-    "commit": "a28a6c5b0790c4efa4495de8393631bf1ae814b1"
+    "commit": "c770aaf3c76a10dbcd6584d033bb76ffa80ccd27"
   },
   "requires": {
     "patch": "Mooece/ais-pg-upgrade",
-    "release_id": "20261123-full-reply-tools-8c371879",
-    "commit": "bd8893d"
+    "release_id": "20261126-c770-compat",
+    "commit": "d486455"
   },
   "entries": [
     {
@@ -38,14 +38,8 @@
     {
       "path": "src/aistudio_api/application/account_service.py",
       "action": "write",
-      "base_sha256": "287708c2f231b713a970910a68b8330b9790a78d7601069b2f95abb0d89b15e5",
-      "payload_sha256": "9ddb502e1de59d8581e030725ecd9c2dcdd81d20a04390d24f5ae4c96329bf3e"
-    },
-    {
-      "path": "src/aistudio_api/config.py",
-      "action": "write",
-      "base_sha256": "91f75e0229106b00eeae79a2e5dc7a8c957c01d5b968b6f9c1e46cbe876aad08",
-      "payload_sha256": "5417b80a5321a30b793ce572ec114396c085d76adb99486f5f51a040a8bfdbd9"
+      "base_sha256": "bb31fcce51d75d86701b2d571787d5f2f1c2b8417a5b38e457f88d2bf575516a",
+      "payload_sha256": "4e9d31d623c7076784bd2b455f232cd61ed2dfef51c79af8225f8608f0ce4a96"
     },
     {
       "path": "src/aistudio_api/infrastructure/account/account_store.py",
@@ -56,8 +50,8 @@
     {
       "path": "src/aistudio_api/infrastructure/account/cookie_parser.py",
       "action": "write",
-      "base_sha256": "ae9878e5133653852f16ad4331134131116331a35b9c9b21bc429f1c6b1bc1f5",
-      "payload_sha256": "3f5a3bccd31cb7d7a7a70f561e12f251adcb0b22f439897a09d8d24e9fafc112"
+      "base_sha256": "7015e4d124044b9c1cbaf3fb71458f34b809755a8e99fdff2c44ef171880800a",
+      "payload_sha256": "9ef4daa0a58c84a4f2145e5277d1b45297a6e7bd86027a490913971cad465b6d"
     },
     {
       "path": "src/aistudio_api/infrastructure/account/proxy_store.py",
@@ -92,8 +86,8 @@
     {
       "path": "src/aistudio_api/infrastructure/waa/signer.py",
       "action": "write",
-      "base_sha256": "ccdb8a1b74edd7833d35809f0a60041f68a26d844cf8580556bc3a0389795da7",
-      "payload_sha256": "fe68b6144bce6c6cdcd46de39616004e41ff4d6d895436716daf7c1cc17a6743"
+      "base_sha256": "b21250bb03420c4c1e8da475ff70aa3a7f35cbc5cc730cbbbdaf5d3123779db2",
+      "payload_sha256": "9d894e6611cf8dc43da3aa54c2a1f1e0e1b36e351c9777a3e03c1669639556e1"
     },
     {
       "path": "src/aistudio_api/static/.vite/manifest.json",
@@ -231,7 +225,7 @@
       "path": "src/aistudio_api/static/index.html",
       "action": "write",
       "base_sha256": "df7c358cf02024320195135b3ed092fbfbd5b428e80994848dd21b6536edfeae",
-      "payload_sha256": "cbcfaab38d974ca505d3916c715a38608a7011b23951bf63a64673e454a404cd"
+      "payload_sha256": "3675f9b3dcbce997c3f7fbb22018dc81e99e3141035d1f4f32963c9780d44124"
     },
     {
       "path": "tests/conftest.py",
@@ -254,14 +248,14 @@
     {
       "path": "waa-signer/cmd/waa-signer/main.go",
       "action": "write",
-      "base_sha256": "a30dbcc8cb004032c1a1a8e87a837bb3d3fc60415e0efd13c237d0ffe8d1cb76",
-      "payload_sha256": "0264c824d132d78088bbefcca8a1301635cfe7fa51cbe7f22e48e7806ccf0d6b"
+      "base_sha256": "f73ec7475dbed80b1655b7c724f8036396164554d112502129b61aadfc9d8263",
+      "payload_sha256": "37c6501598bd023cec0edd9e451f87d57ab62e203d638919e1eace0c5f07d30a"
     },
     {
       "path": "waa-signer/cmd/waa-signer/main_test.go",
       "action": "write",
-      "base_sha256": "6efb0a6827010e431010760c200cca3c4a7d123673e13f53d2f1d58db998ec91",
-      "payload_sha256": "7ccefc6bf1e14bae50f01c3d74caec9b9dc659299baf9b0a8835e0a31b5124d4"
+      "base_sha256": "bf955d0f66d61b90a15c3f83aab6a80659a02f8b58fef87bf7d528e2a10c8ec5",
+      "payload_sha256": "ccc26f335555be87ba3f0b1b072aa50adb48611f032c17ec8185cfb0222f3164"
     },
     {
       "path": "web/src/api/accounts.ts",
