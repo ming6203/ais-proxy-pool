@@ -1,0 +1,351 @@
+{
+  "schema_version": 1,
+  "release_id": "20261127-proxy-pool-3125b1ff",
+  "upstream": {
+    "url": "https://github.com/DeconstructedCube/aistudio-api",
+    "commit": "a28a6c5b0790c4efa4495de8393631bf1ae814b1"
+  },
+  "requires": {
+    "patch": "Mooece/ais-pg-upgrade",
+    "release_id": "20261123-full-reply-tools-8c371879",
+    "commit": "bd8893d"
+  },
+  "entries": [
+    {
+      "path": "src/aistudio_api/api/app.py",
+      "action": "write",
+      "base_sha256": "f655e70526b4cddfffafa37cab7f21072260f779914e6f1308dbbefc0c28e12d",
+      "payload_sha256": "74c3300bbff4e2a602a0c4317fe8da19af709f6eafbbedee93e0cbe76300a3fd"
+    },
+    {
+      "path": "src/aistudio_api/api/routes_accounts.py",
+      "action": "write",
+      "base_sha256": "42f0d579cc4eb805d19e7133b2debd142dcc05f2b4c6c40d798a8b16d6254322",
+      "payload_sha256": "727b14ea90fe7e00329060b7a0165f3ae3ccb4c7b619ebf8d914e7bf048a2e12"
+    },
+    {
+      "path": "src/aistudio_api/api/routes_proxies.py",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "9e9d5f2c68cafdf967c4822b059b828be7cc2d47dfd3fcd97f385e3924b4054f"
+    },
+    {
+      "path": "src/aistudio_api/api/routes_system.py",
+      "action": "write",
+      "base_sha256": "647fcb76cc993970f44df85141219b0d62e55b4110cfd4955026de5d39a193f1",
+      "payload_sha256": "13c7390a907c91c67657f73830025e489a2f5514a25a243ca2fe0b850ac2fcb5"
+    },
+    {
+      "path": "src/aistudio_api/application/account_service.py",
+      "action": "write",
+      "base_sha256": "287708c2f231b713a970910a68b8330b9790a78d7601069b2f95abb0d89b15e5",
+      "payload_sha256": "9ddb502e1de59d8581e030725ecd9c2dcdd81d20a04390d24f5ae4c96329bf3e"
+    },
+    {
+      "path": "src/aistudio_api/config.py",
+      "action": "write",
+      "base_sha256": "91f75e0229106b00eeae79a2e5dc7a8c957c01d5b968b6f9c1e46cbe876aad08",
+      "payload_sha256": "5417b80a5321a30b793ce572ec114396c085d76adb99486f5f51a040a8bfdbd9"
+    },
+    {
+      "path": "src/aistudio_api/infrastructure/account/account_store.py",
+      "action": "write",
+      "base_sha256": "40f5dc49fcfde6c715f7a6b41a12f1e06a6697876a3beec3d39e19eabfd8192f",
+      "payload_sha256": "370100cd46279c17147cfea16b21928f1d611e06782d35e1513cb9b92287c20d"
+    },
+    {
+      "path": "src/aistudio_api/infrastructure/account/cookie_parser.py",
+      "action": "write",
+      "base_sha256": "ae9878e5133653852f16ad4331134131116331a35b9c9b21bc429f1c6b1bc1f5",
+      "payload_sha256": "3f5a3bccd31cb7d7a7a70f561e12f251adcb0b22f439897a09d8d24e9fafc112"
+    },
+    {
+      "path": "src/aistudio_api/infrastructure/account/proxy_store.py",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "99aaefb28c17c1f3da33cbccc6233459cceafd16db2b13686d811ffb99ff3e95"
+    },
+    {
+      "path": "src/aistudio_api/infrastructure/gateway/session.py",
+      "action": "write",
+      "base_sha256": "0feb43bc0e7fe4227c7c1c5d9c62f7ab6db0340309d3951c36a8b7be353f2c15",
+      "payload_sha256": "ae486b976d86179850927fca49df014453284270b206f45111f311fcfc75f920"
+    },
+    {
+      "path": "src/aistudio_api/infrastructure/gateway/transport.py",
+      "action": "write",
+      "base_sha256": "76d1419ff46adafb71afe1bacd2060fab6a713fa4cf7808537b8ddfc1d05e141",
+      "payload_sha256": "722c9a4b238f54a9c6eed48a28ee8e09235bc199b23b2ecccce6bef4627662f3"
+    },
+    {
+      "path": "src/aistudio_api/infrastructure/utils/proxy_url.py",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "f74bb3203472fb1c2f186818b8a2e4dbbe49ac1fa21610e057fbbcc2e215dbc1"
+    },
+    {
+      "path": "src/aistudio_api/infrastructure/waa/daemon.py",
+      "action": "write",
+      "base_sha256": "6d8831866e621785971c6fece93e7e66975b17a773540a8f95fb88fc62b14718",
+      "payload_sha256": "b0cafb24b7491f24c6c0bccb9b69b59ebaf04d984c5e56ef75d607de96aad738"
+    },
+    {
+      "path": "src/aistudio_api/infrastructure/waa/signer.py",
+      "action": "write",
+      "base_sha256": "ccdb8a1b74edd7833d35809f0a60041f68a26d844cf8580556bc3a0389795da7",
+      "payload_sha256": "fe68b6144bce6c6cdcd46de39616004e41ff4d6d895436716daf7c1cc17a6743"
+    },
+    {
+      "path": "src/aistudio_api/static/.vite/manifest.json",
+      "action": "write",
+      "base_sha256": "8bc025fd36b260fc007b713b88c5cb19a7111c55d8acc0dd7a199f856524f72a",
+      "payload_sha256": "23336df2689016c7aa96aea58d5d8d40e054a69ecca0d3d525a46261d90f636b"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/AccountsView-BPug4Bcm.js",
+      "action": "delete",
+      "base_sha256": "f93a3dab5e0589518a5095cc64edce110ee39e82d57e5856141ae819c41d6db7",
+      "payload_sha256": null
+    },
+    {
+      "path": "src/aistudio_api/static/assets/AccountsView-LPk0yXuh.js",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "ef4f5e105ebf993ee25419a69af721ddd3881589cdb5d48c170a28e542dede70"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/Badge.vue_vue_type_script_setup_true_lang-D21Hd6gi.js",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "f14c57fea21a2a291a29b4ea7df2646ec206517ee96beb71dd205ce792a39966"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/Badge.vue_vue_type_script_setup_true_lang-PLWezJcT.js",
+      "action": "delete",
+      "base_sha256": "2a6fb4b9d990d90d672042d2fa18e60800adbcd7d9389930a4e2632fa7ef37a3",
+      "payload_sha256": null
+    },
+    {
+      "path": "src/aistudio_api/static/assets/DashboardView-C3bXb6f8.js",
+      "action": "delete",
+      "base_sha256": "7be8c7d6292e13b6f9413ebe45b3d2d670230efbdb426d22028d376e3f85db4e",
+      "payload_sha256": null
+    },
+    {
+      "path": "src/aistudio_api/static/assets/DashboardView-KQ2ufLPW.js",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "536e8376dc761a82e75da7b1750825a411fea66d90cab8ff64471b998115f28e"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/index-B6ZujRc5.js",
+      "action": "delete",
+      "base_sha256": "4984fbcf90400d863083db142c3562d236b4340dfe45e73a10acc300b37d361d",
+      "payload_sha256": null
+    },
+    {
+      "path": "src/aistudio_api/static/assets/index-CCA_3-Oo.css",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "c53cf5998f541326423526f861607c00ba9983d10188eabd5e2e2abaa947df48"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/index-D1MISueA.js",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "939ecaadd1f904549c2cda7fc058d02bac08233aadcc2bfbbe60e59e9255e952"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/index-hBNmtZf6.css",
+      "action": "delete",
+      "base_sha256": "cada1efd2544cb0c9271ff707894c71158abdf5b5aa908027121f4cb5371c6c7",
+      "payload_sha256": null
+    },
+    {
+      "path": "src/aistudio_api/static/assets/LoginView-7K-lZ2ib.js",
+      "action": "delete",
+      "base_sha256": "f46c0cb987b74cd133b633b5a1a26e97595adda93c188122fddd720110989e84",
+      "payload_sha256": null
+    },
+    {
+      "path": "src/aistudio_api/static/assets/LoginView-BHgPxCyI.js",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "db829ed43c4ba84081e0d45a30eb46ee36aa35d4f9f010c88f4468652b829b64"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/proxies-CCK9k0i2.js",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "dca85df193ed63f48480e692034443e425049b19d359c12349f608dddc34996f"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/SettingsView-Bb74AqRB.js",
+      "action": "delete",
+      "base_sha256": "4b4563390706c39edd08a06856d9d04ce8c9f5ae20a4226e856680b9fd21105e",
+      "payload_sha256": null
+    },
+    {
+      "path": "src/aistudio_api/static/assets/SettingsView-CIhbIpVF.js",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "0b5e50eb7f9d084becf7329ef634597777b5d51ee0f9d6dc11236348c26257b1"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/useClipboard-CPEN7-pL.js",
+      "action": "delete",
+      "base_sha256": "8a5a836aa6f40e4791e38837eb12bcba1ab46741c801e525a9bfaa207a451476",
+      "payload_sha256": null
+    },
+    {
+      "path": "src/aistudio_api/static/assets/useClipboard-D0NuZOWk.js",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "b7d61b63aa64e52695aab53dc21176b345d252e656086b01c447f972b68e8b9c"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/vendor-icons-37iq4xNM.js",
+      "action": "delete",
+      "base_sha256": "87a489db4d576136a6ce3a4d083794d56caee0079ce5b3fd73fba82d3d108813",
+      "payload_sha256": null
+    },
+    {
+      "path": "src/aistudio_api/static/assets/vendor-icons-DE8fMWY8.js",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "344ded577e5622fa3149349973e58f5a41c0d4e70aef75fc0f01e6b3f519a83c"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/vendor-vue-_uKXEWiK.js",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "ed1381c003b6f7be2c09dd803b346bef55f0435779dad5faf1e11161e35915ec"
+    },
+    {
+      "path": "src/aistudio_api/static/assets/vendor-vue-BjScXn2E.js",
+      "action": "delete",
+      "base_sha256": "8c564664719700f7814b02d100a073dcd645c55d0a087f8d6ff714bce229ded8",
+      "payload_sha256": null
+    },
+    {
+      "path": "src/aistudio_api/static/index.html",
+      "action": "write",
+      "base_sha256": "df7c358cf02024320195135b3ed092fbfbd5b428e80994848dd21b6536edfeae",
+      "payload_sha256": "cbcfaab38d974ca505d3916c715a38608a7011b23951bf63a64673e454a404cd"
+    },
+    {
+      "path": "tests/conftest.py",
+      "action": "write",
+      "base_sha256": "c2bb2bb2332f02ac72aeb6f9dceefae5a3da6d4c8d570ea92248725e639c1673",
+      "payload_sha256": "73dad18c90a0a1f214f6fa20adc2f20e29f727c57b044edd74921a4f055e8e0e"
+    },
+    {
+      "path": "tests/unit/test_proxy_pool.py",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "4e423679d1983a3d10dda699720ef7412254d9b0a0c338106f60b5ad3f881514"
+    },
+    {
+      "path": "tests/unit/test_proxy_support.py",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "1dba50276e0f11e6bdeea061787fa9e54b1895ea3decb7e67f40405ac4276710"
+    },
+    {
+      "path": "waa-signer/cmd/waa-signer/main.go",
+      "action": "write",
+      "base_sha256": "a30dbcc8cb004032c1a1a8e87a837bb3d3fc60415e0efd13c237d0ffe8d1cb76",
+      "payload_sha256": "0264c824d132d78088bbefcca8a1301635cfe7fa51cbe7f22e48e7806ccf0d6b"
+    },
+    {
+      "path": "waa-signer/cmd/waa-signer/main_test.go",
+      "action": "write",
+      "base_sha256": "6efb0a6827010e431010760c200cca3c4a7d123673e13f53d2f1d58db998ec91",
+      "payload_sha256": "7ccefc6bf1e14bae50f01c3d74caec9b9dc659299baf9b0a8835e0a31b5124d4"
+    },
+    {
+      "path": "web/src/api/accounts.ts",
+      "action": "write",
+      "base_sha256": "3f72c0153d2aaef28aa5eca4f884db1bc34c88e17dd84078f002dcfe37dea74f",
+      "payload_sha256": "a30c939b420046c4a90418540c6bc5cd4d4f587c397ee8653142a108c2a594c5"
+    },
+    {
+      "path": "web/src/api/proxies.ts",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "3193a8b90c66df545077d074c7b8932b4fd882707d9d7f50b766c7dff3ab8a21"
+    },
+    {
+      "path": "web/src/components/accounts/AccountRow.vue",
+      "action": "write",
+      "base_sha256": "c3a2c51b48119de2cccde3aaec312da407e746e738b58abc668e8f19f8591534",
+      "payload_sha256": "da7bfd263f1cffd17742261688df7b02811c08709298d298264da23cdf5ca881"
+    },
+    {
+      "path": "web/src/components/accounts/AccountTable.vue",
+      "action": "write",
+      "base_sha256": "76e5ea4116cf17176a95b1922423f53281bd2e67a2a11a2fb79a04d92aae08a8",
+      "payload_sha256": "facbac3385cd7bf995fa56f86475011163c526d2a0b7d5644a3a2d7d8b443aeb"
+    },
+    {
+      "path": "web/src/components/modals/CookieImportModal.vue",
+      "action": "write",
+      "base_sha256": "b181a80e693949cfc3b9c1d54f5d7a264d93c0a1ac51e84a54e67bf4a568babb",
+      "payload_sha256": "8172dd811bedbbc7dc216646d017c1f562ff895917d78111f933064c88babb7d"
+    },
+    {
+      "path": "web/src/components/modals/EditAccountModal.vue",
+      "action": "write",
+      "base_sha256": "ea6f972fad4d6dce11f30bf2afb694013ba113ead78c54ae42b3dd8c4a8bf330",
+      "payload_sha256": "1dab0f05da43373f7fc1319e87efda8bba76aeea5de305eabbebe4ac22df63e4"
+    },
+    {
+      "path": "web/src/components/settings/ProxyPoolCard.vue",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "6129a7b3479bfea8679fe6e0ab76b768ecb5a6c2cd556916320fb9366bbd251c"
+    },
+    {
+      "path": "web/src/stores/accounts.ts",
+      "action": "write",
+      "base_sha256": "fa8d8b381d81cad10923829dada465c6af909c403b657719eca160d0089365fc",
+      "payload_sha256": "046e1bfd02e602a2bd2c1d9bee5b88fe4911fa81c7d0eb782e3b53697a3a2f96"
+    },
+    {
+      "path": "web/src/stores/proxies.ts",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "a16731db2e312cf5e4f84111c26c7d77cba398dadb43bae7f3c429a2d1398be7"
+    },
+    {
+      "path": "web/src/types/accounts.ts",
+      "action": "write",
+      "base_sha256": "773499dacdd88697423d28cfa333c5a0e7c3e5a5ec736813ca1c8ffba3724fb8",
+      "payload_sha256": "1339ad1b301328a8eb22184ec8787dd2105c721302bd129a39e84c231f4af736"
+    },
+    {
+      "path": "web/src/types/index.ts",
+      "action": "write",
+      "base_sha256": "3570d3654e7029678b7d284a4d95478df6370d25750b67a700169a28d6ecdfc7",
+      "payload_sha256": "334bb4221c1571fdea5081162f895e5656143edeeb6040f9661d73f04ed04e14"
+    },
+    {
+      "path": "web/src/types/proxies.ts",
+      "action": "write",
+      "base_sha256": null,
+      "payload_sha256": "776521c419c5542d6e351482cf58c61168ca360423461addb787d67eebe51634"
+    },
+    {
+      "path": "web/src/types/system.ts",
+      "action": "write",
+      "base_sha256": "b0c525fc0f21138f581f7de414a2d77642a89d413cdddd2865146f746e903128",
+      "payload_sha256": "94a1bf856d76d38290e44aa2d4b860030ed3eecfa4f750e5c649a7b80eea7256"
+    },
+    {
+      "path": "web/src/views/SettingsView.vue",
+      "action": "write",
+      "base_sha256": "73deb07e439cc319c3d2902ab0bc5bb98fe5a38af69d6a322b41df7ce8cf2def",
+      "payload_sha256": "2055e50049de6bfd0e2bac776e036afd978c1b5efdd89cb0f2880c09b8e9829a"
+    }
+  ]
+}

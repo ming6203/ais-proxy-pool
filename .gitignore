@@ -1,0 +1,19 @@
+# Python / test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local artifacts
+*.log
+*.pid
+ais-proxy-pool-backups/
+backups/
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

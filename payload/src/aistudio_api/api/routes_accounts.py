@@ -1,0 +1,1167 @@
+"""账号管理路由。"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+from typing import TYPE_CHECKING
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Path as FastApiPath
+from pydantic import BaseModel, ConfigDict, Field
+
+from aistudio_api.api.dependencies import (
+    get_account_service,
+    get_runtime_state,
+)
+from aistudio_api.infrastructure.account.account_store import AccountMeta
+from aistudio_api.infrastructure.account.cookie_parser import (
+    load_cookies_from_auth_file,
+    normalize_benefit_tier,
+    parse_cookie_string,
+    probe_account_benefit_tier,
+    probe_account_email,
+)
+from aistudio_api.infrastructure.account.proxy_store import resolve_egress
+from aistudio_api.infrastructure.gateway.model_discovery import model_discovery
+from aistudio_api.infrastructure.utils.common import mask_email
+
+if TYPE_CHECKING:
+    from aistudio_api.api.state import RuntimeState
+    from aistudio_api.application.account_service import AccountService
+from aistudio_api.infrastructure.utils.logger import get_logger
+
+log = get_logger("accounts")
+
+router = APIRouter(prefix="/accounts")
+
+
+class AccountResponse(BaseModel):
+    id: str
+    name: str
+    email: str | None
+    created_at: str
+    last_used: str | None
+    auth_user: str = "0"
+    cookie_id: str | None = None
+    tier: str = "Free"
+    enabled: bool = True
+    group: str = "default"
+    notes: str = ""
+    # 账号出口代理：仅引用代理池中的命名代理，空值表示直连。
+    proxy_id: str = ""
+    proxy_name: str = ""
+
+
+def to_account_response(account: AccountMeta) -> AccountResponse:
+    cid = getattr(account, "cookie_id", None) or (
+        f"cookie_{account.created_at[:16]}"
+        if getattr(account, "created_at", None)
+        else f"cookie_{account.id}"
+    )
+    proxy_id = getattr(account, "proxy_id", "") or ""
+    proxy_name = ""
+    if proxy_id:
+        from aistudio_api.infrastructure.account.proxy_store import get_proxy_store
+
+        profile = get_proxy_store().get(proxy_id)
+        proxy_name = profile.name if profile is not None else ""
+    return AccountResponse(
+        id=account.id,
+        name=account.name,
+        email=account.email,
+        created_at=account.created_at or "",
+        last_used=account.last_used,
+        auth_user=getattr(account, "auth_user", "0") or "0",
+        cookie_id=cid,
+        tier=getattr(account, "tier", "Free") or "Free",
+        enabled=getattr(account, "enabled", True),
+        group=getattr(account, "group", "default") or "default",
+        notes=getattr(account, "notes", "") or "",
+        proxy_id=proxy_id,
+        proxy_name=proxy_name,
+    )
+
+
+class UpdateAccountRequest(BaseModel):
+    name: str
+
+
+class UpdateGroupRequest(BaseModel):
+    group: str
+
+
+class UpdateNotesRequest(BaseModel):
+    notes: str
+
+
+class UpdateProxyRequest(BaseModel):
+    # 代理池引用；空串表示该账号直连。
+    proxy_id: str = ""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class BulkProxyRequest(BaseModel):
+    account_ids: list[str]
+    proxy_id: str = ""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class UpdateTierRequest(BaseModel):
+    tier: str
+
+
+class ToggleAccountRequest(BaseModel):
+    enabled: bool | None = None
+
+
+class PresetResponse(BaseModel):
+    id: str
+    name: str
+    description: str = ""
+    action: str = "snapshot"
+    account_ids: list[str] = []
+    target_tiers: list[str] = []
+    target_groups: list[str] = []
+    is_system: bool = False
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class CreatePresetRequest(BaseModel):
+    name: str
+    description: str = ""
+    action: str = "snapshot"
+    account_ids: list[str] = []
+    target_tiers: list[str] = []
+    target_groups: list[str] = []
+
+
+class SnapshotPresetRequest(BaseModel):
+    name: str
+    description: str = ""
+
+
+class ApplyPresetResponse(BaseModel):
+    ok: bool = True
+    preset_id: str
+    preset_name: str
+    enabled_count: int
+    disabled_count: int
+    enabled_account_ids: list[str]
+    disabled_account_ids: list[str]
+
+
+class ImportCookiesRequest(BaseModel):
+    cookies: str
+    name: str | None = None
+    email: str | None = None
+    account_id: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9_\-\.@]+$")
+    auth_user: str = "0"
+    tier: str | None = None
+    proxy_id: str | None = None
+
+
+class ImportCookiesResponse(BaseModel):
+    account_id: str
+    name: str
+    cookie_count: int
+    auth_user: str = "0"
+    tier: str = "Free"
+    proxy_id: str = ""
+
+
+class ProbeAndImportRequest(BaseModel):
+    cookies: str
+    name_prefix: str | None = None
+    proxy_id: str | None = None
+
+
+class ProbeAndImportResponse(BaseModel):
+    imported_count: int
+    accounts: list[AccountResponse]
+
+
+class BundleAccountItem(BaseModel):
+    id: str | None = None
+    name: str | None = None
+    email: str | None = None
+    cookies: str
+    auth_user: str = "0"
+    tier: str | None = None
+    proxy_id: str | None = None
+
+
+class ImportBundleRequest(BaseModel):
+    file_path: str | None = None
+    content: str | None = None
+    accounts: list[BundleAccountItem] | None = None
+
+
+class ImportBundleResponse(BaseModel):
+    imported_count: int
+    accounts: list[AccountResponse]
+
+
+@router.get("", response_model=list[AccountResponse])
+@router.get("/", response_model=list[AccountResponse])
+async def list_accounts(
+    account_service: AccountService = Depends(get_account_service),
+) -> list[AccountResponse]:
+    """列出所有账号。"""
+    accounts = account_service.list_accounts()
+    return [to_account_response(a) for a in accounts]
+
+
+@router.get("/active", response_model=AccountResponse)
+async def get_active_account(
+    account_service: AccountService = Depends(get_account_service),
+) -> AccountResponse:
+    """获取当前活跃账号。"""
+    account = account_service.get_active_account()
+    if account is None:
+        raise HTTPException(status_code=404, detail="没有活跃账号")
+    return to_account_response(account)
+
+
+@router.post("/{account_id}/activate", response_model=AccountResponse)
+async def activate_account(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> AccountResponse:
+    """切换到指定账号。"""
+    gateway_session = runtime_state.client.session if runtime_state.client else None
+
+    if gateway_session is None:
+        raise HTTPException(status_code=503, detail="服务未就绪")
+
+    account = await account_service.activate_account(account_id, gateway_session)
+    if account is None:
+        raise HTTPException(status_code=404, detail="账号不存在或切换失败")
+    if runtime_state.rotator:
+        runtime_state.rotator.add_account(account.id)
+        runtime_state.rotator.clear_cooldown(account.id)
+    model_discovery.invalidate_cache()
+    log.info("激活账号: id=%s, name=%s", account.id, account.name)
+    return to_account_response(account)
+
+
+def _sync_active_session_tier(
+    runtime_state: RuntimeState,
+    account_service: AccountService,
+    account_id: str,
+    tier: str,
+) -> None:
+    client_obj = getattr(runtime_state, "client", None)
+    gateway_session = client_obj.session if client_obj is not None else None
+    active = account_service.get_active_account()
+    if (
+        gateway_session is not None
+        and active is not None
+        and active.id == account_id
+        and gateway_session.active_context is not None
+    ):
+        gateway_session.active_context.tier = normalize_benefit_tier(tier)
+
+
+@router.post("/{account_id}/detect-email", response_model=AccountResponse)
+async def detect_account_email(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> AccountResponse:
+    """自动获取并更新指定账号的真实邮箱与订阅等级。"""
+    acc = account_service.get_account(account_id)
+    if not acc:
+        raise HTTPException(status_code=404, detail="账号不存在")
+
+    target_auth = account_service.get_account_auth_path(account_id)
+    email: str | None = None
+    detected_tier: str | None = None
+    acc_egress = resolve_egress(acc.proxy_id)
+
+    if target_auth:
+        try:
+            cookie_dict = load_cookies_from_auth_file(target_auth)
+            if cookie_dict:
+                email = await probe_account_email(
+                    cookie_dict,
+                    auth_user=acc.auth_user or "0",
+                    proxy=acc_egress,
+                )
+                http_tier = await probe_account_benefit_tier(
+                    cookie_dict,
+                    auth_user=acc.auth_user or "0",
+                    proxy=acc_egress,
+                    default=None,
+                )
+                if http_tier:
+                    detected_tier = (
+                        "Ultra_20X"
+                        if acc.tier == "Ultra_20X" and http_tier == "Ultra"
+                        else http_tier
+                    )
+        except Exception as e:
+            log.debug("探测账号 %s 邮箱/等级失败: %s", account_id, e)
+    if email:
+        account_service.update_account_email(account_id, email)
+        log.info("更新账号邮箱: id=%s, email=%s", account_id, mask_email(email))
+
+    if detected_tier:
+        account_service.update_account_tier(account_id, detected_tier)
+        _sync_active_session_tier(
+            runtime_state, account_service, account_id, detected_tier
+        )
+        model_discovery.invalidate_cache()
+        log.info("更新账号订阅等级: id=%s, tier=%s", account_id, detected_tier)
+    acc = account_service.get_account(account_id)
+    if not acc:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    return to_account_response(acc)
+
+
+@router.post("/{account_id}/detect-tier", response_model=AccountResponse)
+async def detect_account_tier(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> AccountResponse:
+    """探测并更新指定账号的订阅权益等级 (Free / Pro / Ultra / Plus)。"""
+    acc = account_service.get_account(account_id)
+    if not acc:
+        raise HTTPException(status_code=404, detail="账号不存在")
+
+    detected_tier: str | None = None
+    target_auth = account_service.get_account_auth_path(account_id)
+    acc_egress = resolve_egress(acc.proxy_id)
+    if target_auth:
+        try:
+            cookie_dict = load_cookies_from_auth_file(target_auth)
+            if cookie_dict:
+                probed_tier = await probe_account_benefit_tier(
+                    cookie_dict,
+                    auth_user=acc.auth_user or "0",
+                    proxy=acc_egress,
+                    default=None,
+                )
+                if probed_tier:
+                    detected_tier = (
+                        "Ultra_20X"
+                        if acc.tier == "Ultra_20X" and probed_tier == "Ultra"
+                        else probed_tier
+                    )
+        except Exception as e:
+            log.debug("探测账号 %s 订阅等级失败: %s", account_id, e)
+
+    if detected_tier:
+        account_service.update_account_tier(account_id, detected_tier)
+        _sync_active_session_tier(
+            runtime_state, account_service, account_id, detected_tier
+        )
+        model_discovery.invalidate_cache()
+        log.info("更新账号订阅等级: id=%s, tier=%s", account_id, detected_tier)
+    acc = account_service.get_account(account_id)
+    if not acc:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    return to_account_response(acc)
+
+
+@router.put("/{account_id}/tier", response_model=AccountResponse)
+async def update_account_tier_manual(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    req: UpdateTierRequest = Body(...),
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> AccountResponse:
+    """手动设置账号的订阅权益等级 (Free / Plus / Pro / Ultra / Ultra_20X)。"""
+    acc = account_service.get_account(account_id)
+    if not acc:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    clean_tier = normalize_benefit_tier(req.tier)
+    account_service.update_account_tier(account_id, clean_tier)
+    _sync_active_session_tier(runtime_state, account_service, account_id, clean_tier)
+    model_discovery.invalidate_cache()
+    log.info("手动更新账号订阅等级: id=%s, tier=%s", account_id, clean_tier)
+    updated = account_service.get_account(account_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    return to_account_response(updated)
+
+
+@router.post("/{account_id}/rotate-cookies")
+async def rotate_account_cookies(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> dict[str, object]:
+    """手动触发指定账号及其同源子账号的 Google Cookie 轮换续期。"""
+    acc = account_service.get_account(account_id)
+    if not acc:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    gateway_session = runtime_state.client.session if runtime_state.client else None
+    res = await account_service.rotate_account_cookies(account_id, gateway_session)
+    ok = bool(res.get("ok"))
+    if ok and runtime_state.rotator:
+        runtime_state.rotator.clear_cooldown(account_id)
+    return {
+        "ok": ok,
+        "account_id": account_id,
+        "status": res.get("status", 0),
+        "updated": res.get("updated", []),
+        "skipped": res.get("skipped"),
+        "error": res.get("error"),
+    }
+
+
+@router.delete("/{account_id}")
+async def delete_account(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> dict[str, bool]:
+    """删除账号。"""
+    active_account = account_service.get_active_account()
+    is_active = active_account is not None and active_account.id == account_id
+
+    success = account_service.delete_account(account_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="账号不存在")
+
+    if runtime_state.rotator:
+        runtime_state.rotator.remove_account(account_id)
+    if is_active:
+        remaining_accounts = account_service.list_accounts()
+        new_active = next((a for a in remaining_accounts if a.enabled), None)
+        gateway_session = runtime_state.client.session if runtime_state.client else None
+        if new_active is not None:
+            account_service.set_active_account(new_active.id)
+            if gateway_session is not None:
+                new_auth_path = account_service.get_account_auth_path(new_active.id)
+                await gateway_session.switch_auth(
+                    str(new_auth_path) if new_auth_path else None
+                )
+        else:
+            if gateway_session is not None:
+                await gateway_session.switch_auth(None)
+    model_discovery.invalidate_cache()
+
+    log.info("已删除账号: id=%s", account_id)
+    return {"ok": True}
+
+
+@router.delete("/group/{cookie_id}")
+async def delete_cookie_group(
+    cookie_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@:]+$"),
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> dict[str, int]:
+    """按 Cookie 组批量删除该 Cookie 下的所有子账号。"""
+    active_account = account_service.get_active_account()
+    active_id = active_account.id if active_account is not None else None
+    active_deleted = False
+
+    accounts = account_service.list_accounts()
+    deleted_count = 0
+    rotator = runtime_state.rotator
+    for a in accounts:
+        acc_cid = getattr(a, "cookie_id", None) or (
+            f"cookie_{a.created_at[:16]}"
+            if getattr(a, "created_at", None)
+            else f"cookie_{a.id}"
+        )
+        if acc_cid == cookie_id:
+            if a.id == active_id:
+                active_deleted = True
+            if account_service.delete_account(a.id):
+                deleted_count += 1
+                if rotator:
+                    rotator.remove_account(a.id)
+                log.info("已删除子账号: cookie_id=%s, id=%s", cookie_id, a.id)
+
+    if active_deleted:
+        remaining_accounts = account_service.list_accounts()
+        new_active = next((a for a in remaining_accounts if a.enabled), None)
+        gateway_session = runtime_state.client.session if runtime_state.client else None
+        if new_active is not None:
+            account_service.set_active_account(new_active.id)
+            if gateway_session is not None:
+                new_auth_path = account_service.get_account_auth_path(new_active.id)
+                await gateway_session.switch_auth(
+                    str(new_auth_path) if new_auth_path else None
+                )
+        else:
+            if gateway_session is not None:
+                await gateway_session.switch_auth(None)
+    if deleted_count > 0:
+        model_discovery.invalidate_cache()
+
+    return {"deleted": deleted_count}
+
+
+@router.put("/{account_id}", response_model=AccountResponse)
+async def update_account(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    req: UpdateAccountRequest = Body(...),
+    account_service: AccountService = Depends(get_account_service),
+) -> AccountResponse:
+    """更新账号名称。"""
+    account = account_service.update_account(account_id, req.name)
+    if account is None:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    log.info("账号名称已更新: id=%s, name=%s", account.id, req.name)
+    return to_account_response(account)
+
+
+@router.post("/{account_id}/toggle", response_model=AccountResponse)
+async def toggle_account(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    req: ToggleAccountRequest = Body(default_factory=ToggleAccountRequest),
+    account_service: AccountService = Depends(get_account_service),
+) -> AccountResponse:
+    """切换单个账号的使能状态 (Enabled/Disabled)。"""
+    active_before = account_service.get_active_account()
+    was_active = active_before is not None and active_before.id == account_id
+    account = account_service.toggle_account_enabled(account_id, req.enabled)
+    if account is None:
+        raise HTTPException(status_code=404, detail="账号不存在")
+
+    # 如果刚好关闭了当前活跃账号，顺延切到下一个可用账号
+    if was_active and not account.enabled:
+        from aistudio_api.application.account_orchestrator import try_switch_account
+
+        await try_switch_account(failed_account_id=account_id)
+    log.info("账号状态已切换: id=%s, enabled=%s", account.id, account.enabled)
+    return to_account_response(account)
+
+
+@router.put("/{account_id}/group", response_model=AccountResponse)
+async def update_account_group(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    req: UpdateGroupRequest = Body(...),
+    account_service: AccountService = Depends(get_account_service),
+) -> AccountResponse:
+    """更新账号所属业务分组。"""
+    account = account_service.update_account_group(account_id, req.group)
+    if account is None:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    log.info("账号分组已更新: id=%s, group=%s", account.id, account.group)
+    return to_account_response(account)
+
+
+@router.put("/{account_id}/notes", response_model=AccountResponse)
+async def update_account_notes(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    req: UpdateNotesRequest = Body(...),
+    account_service: AccountService = Depends(get_account_service),
+) -> AccountResponse:
+    """更新账号备注。"""
+    account = account_service.update_account_notes(account_id, req.notes)
+    if account is None:
+        raise HTTPException(status_code=404, detail="账号不存在")
+    return to_account_response(account)
+
+
+@router.put("/{account_id}/proxy", response_model=AccountResponse)
+async def update_account_proxy(
+    account_id: str = FastApiPath(..., pattern=r"^[a-zA-Z0-9_\-\.@]+$"),
+    req: UpdateProxyRequest = Body(...),
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> AccountResponse:
+    """把账号绑定到代理池中的命名代理；空 ``proxy_id`` 表示直连。"""
+    from aistudio_api.infrastructure.account.proxy_store import get_proxy_store
+    from aistudio_api.infrastructure.utils.proxy_url import mask_proxy_url
+
+    if req.proxy_id and get_proxy_store().get(req.proxy_id) is None:
+        raise HTTPException(status_code=400, detail=f"代理不存在: {req.proxy_id}")
+
+    account = account_service.update_account_proxy_profile(account_id, req.proxy_id)
+    if account is None:
+        raise HTTPException(status_code=404, detail="账号不存在")
+
+    client_obj = getattr(runtime_state, "client", None)
+    gateway_session = client_obj.session if client_obj is not None else None
+    active = account_service.get_active_account()
+    if (
+        gateway_session is not None
+        and active is not None
+        and active.id == account.id
+        and gateway_session.active_context is not None
+    ):
+        gateway_session.active_context.proxy_url = resolve_egress(account.proxy_id)
+    log.info(
+        "账号出口代理已更新: id=%s, proxy=%s",
+        account.id,
+        mask_proxy_url(resolve_egress(account.proxy_id) or "") or "直连",
+    )
+    return to_account_response(account)
+
+
+@router.put("/proxy/bulk", response_model=list[AccountResponse])
+async def bulk_update_account_proxy(
+    req: BulkProxyRequest = Body(...),
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> list[AccountResponse]:
+    """批量把多个账号指向同一个命名代理。"""
+    from aistudio_api.infrastructure.account.proxy_store import get_proxy_store
+    from aistudio_api.infrastructure.utils.proxy_url import mask_proxy_url
+
+    if not req.account_ids:
+        raise HTTPException(status_code=400, detail="请至少选择一个账号")
+    if req.proxy_id and get_proxy_store().get(req.proxy_id) is None:
+        raise HTTPException(status_code=400, detail=f"代理不存在: {req.proxy_id}")
+
+    updated = account_service.batch_update_proxy_profile(req.account_ids, req.proxy_id)
+
+    client_obj = getattr(runtime_state, "client", None)
+    gateway_session = client_obj.session if client_obj is not None else None
+    active = account_service.get_active_account()
+    if (
+        gateway_session is not None
+        and active is not None
+        and active.id in req.account_ids
+        and gateway_session.active_context is not None
+    ):
+        gateway_session.active_context.proxy_url = resolve_egress(active.proxy_id)
+    log.info(
+        "批量更新账号出口代理: 账号数=%d, proxy=%s",
+        len(updated),
+        mask_proxy_url(resolve_egress(updated[0].proxy_id if updated else "") or "")
+        or "直连",
+    )
+    return [to_account_response(a) for a in updated]
+
+
+@router.get("/groups/list", response_model=list[str])
+async def list_groups(
+    account_service: AccountService = Depends(get_account_service),
+) -> list[str]:
+    """列出当前存在的所有分组名称。"""
+    return account_service.list_groups()
+
+
+@router.post("/groups/{group_name}/toggle")
+async def batch_toggle_group(
+    group_name: str,
+    enabled: bool = Body(..., embed=True),
+    account_service: AccountService = Depends(get_account_service),
+) -> dict[str, object]:
+    """按分组批量启用或停用账号。"""
+    active_before = account_service.get_active_account()
+    updated = account_service.batch_toggle_group(group_name, enabled)
+    if active_before and active_before.group == group_name and not enabled:
+        from aistudio_api.application.account_orchestrator import try_switch_account
+
+        await try_switch_account(failed_account_id=active_before.id)
+    return {"ok": True, "count": len(updated), "group": group_name, "enabled": enabled}
+
+
+# ─── 预设方案 (Presets) REST 路由 ───
+@router.get("/presets/list", response_model=list[PresetResponse])
+async def list_presets(
+    account_service: AccountService = Depends(get_account_service),
+) -> list[PresetResponse]:
+    """获取所有可用预设方案列表。"""
+    presets = account_service.list_presets()
+    return [PresetResponse.model_validate(p.to_dict()) for p in presets]
+
+
+@router.post("/presets", response_model=PresetResponse)
+async def create_preset(
+    req: CreatePresetRequest,
+    account_service: AccountService = Depends(get_account_service),
+) -> PresetResponse:
+    """创建自定义预设方案。"""
+    import secrets
+
+    from aistudio_api.infrastructure.account.account_store import AccountPreset
+
+    pid = f"preset_{secrets.token_hex(4)}"
+    preset = AccountPreset(
+        id=pid,
+        name=req.name.strip() or "自定义方案",
+        description=req.description.strip(),
+        action=req.action,
+        account_ids=req.account_ids,
+        target_tiers=req.target_tiers,
+        target_groups=req.target_groups,
+        is_system=False,
+    )
+    saved = account_service.save_preset(preset)
+    return PresetResponse.model_validate(saved.to_dict())
+
+
+@router.post("/presets/snapshot", response_model=PresetResponse)
+async def create_snapshot_preset(
+    req: SnapshotPresetRequest,
+    account_service: AccountService = Depends(get_account_service),
+) -> PresetResponse:
+    """将当前所有启用账号一键快照保存为新预设方案。"""
+    saved = account_service.create_snapshot_preset(req.name, req.description)
+    log.info("已创建预设快照: name=%s, id=%s", saved.name, saved.id)
+    return PresetResponse.model_validate(saved.to_dict())
+
+
+@router.delete("/presets/{preset_id}")
+async def delete_preset(
+    preset_id: str,
+    account_service: AccountService = Depends(get_account_service),
+) -> dict[str, bool]:
+    """删除自定义预设方案。"""
+    try:
+        ok = account_service.delete_preset(preset_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="预设方案不存在")
+        return {"ok": True}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/presets/{preset_id}/apply", response_model=ApplyPresetResponse)
+async def apply_preset(
+    preset_id: str,
+    account_service: AccountService = Depends(get_account_service),
+) -> ApplyPresetResponse:
+    """一键应用预设方案，原子切换账号使能状态。"""
+    try:
+        preset, en_ids, dis_ids = account_service.apply_preset(preset_id)
+        # 检查当前活跃账号是否有效，若失效则顺延切换
+        active_acc = account_service.get_active_account()
+        from aistudio_api.application.account_orchestrator import try_switch_account
+
+        if not active_acc or not active_acc.enabled or active_acc.id in dis_ids:
+            await try_switch_account(
+                failed_account_id=active_acc.id if active_acc else None
+            )
+        else:
+            await try_switch_account()
+
+        log.info(
+            "已应用预设: name=%s, 启用=%d, 停用=%d",
+            preset.name,
+            len(en_ids),
+            len(dis_ids),
+        )
+        return ApplyPresetResponse(
+            ok=True,
+            preset_id=preset.id,
+            preset_name=preset.name,
+            enabled_count=len(en_ids),
+            disabled_count=len(dis_ids),
+            enabled_account_ids=en_ids,
+            disabled_account_ids=dis_ids,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.post("/import-cookies", response_model=ImportCookiesResponse)
+async def import_cookies(
+    req: ImportCookiesRequest,
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> ImportCookiesResponse:
+    """从 Cookie 导入账号（支持 JSON 数组、Netscape、KV 或 JSON 对象）。"""
+    raw_text = req.cookies.strip()
+    if raw_text.startswith(("{", "[")):
+        with contextlib.suppress(Exception):
+            parsed_json = json.loads(raw_text)
+            # Check if this is a multi-account bundle
+            bundle_list: list[object] | None = None
+            if (
+                isinstance(parsed_json, dict)
+                and "accounts" in parsed_json
+                and isinstance(parsed_json["accounts"], list)
+            ):
+                bundle_list = parsed_json["accounts"]
+            elif (
+                isinstance(parsed_json, list)
+                and len(parsed_json) > 0
+                and isinstance(parsed_json[0], dict)
+                and "cookies" in parsed_json[0]
+            ):
+                bundle_list = parsed_json
+
+            if bundle_list:
+                bundle_req = ImportBundleRequest(
+                    accounts=[
+                        BundleAccountItem(
+                            name=str(a.get("name") or "Google Account"),
+                            email=a.get("email")
+                            if isinstance(a.get("email"), str)
+                            else None,
+                            cookies=str(a.get("cookies") or ""),
+                            auth_user=str(
+                                a.get("auth_user") or a.get("authUser") or "0"
+                            ),
+                            tier=(
+                                normalize_benefit_tier(
+                                    str(a.get("tier") or a.get("g1Tier"))
+                                )
+                                if (a.get("tier") or a.get("g1Tier"))
+                                else None
+                            ),
+                            proxy_id=str(a.get("proxy_id") or "") or None,
+                        )
+                        for a in bundle_list
+                        if isinstance(a, dict) and a.get("cookies")
+                    ]
+                )
+                bundle_res = await import_bundle(
+                    bundle_req, account_service, runtime_state
+                )
+                first_id = (
+                    bundle_res.accounts[0].id if bundle_res.accounts else "bundle"
+                )
+                return ImportCookiesResponse(
+                    account_id=first_id,
+                    name=f"已成功批量导入 {bundle_res.imported_count} 个账号",
+                    cookie_count=bundle_res.imported_count,
+                    auth_user="0",
+                )
+
+            # Single account JSON export
+            if isinstance(parsed_json, dict):
+                if "authUser" in parsed_json and req.auth_user == "0":
+                    req.auth_user = str(parsed_json["authUser"])
+                raw_json_tier = parsed_json.get("tier") or parsed_json.get("g1Tier")
+                if raw_json_tier and not req.tier:
+                    req.tier = normalize_benefit_tier(str(raw_json_tier))
+                if "email" in parsed_json and not req.email:
+                    req.email = str(parsed_json["email"])
+    had_active_account = account_service.get_active_account() is not None
+    storage_state = parse_cookie_string(req.cookies)
+    raw_cookies = storage_state.get("cookies")
+    cookie_list: list[dict[str, object]] = (
+        raw_cookies if isinstance(raw_cookies, list) else []
+    )
+    cookie_count = len(cookie_list)
+
+    if cookie_count == 0:
+        raise HTTPException(status_code=400, detail="未解析到有效 cookie")
+
+    name = req.name or (
+        f"Google Account (u/{req.auth_user})" if req.auth_user != "0" else "导入的账号"
+    )
+
+    import secrets
+
+    cid = f"cookie_{secrets.token_hex(4)}"
+    req_egress = resolve_egress(req.proxy_id)
+    detected_email = req.email
+    detected_tier = normalize_benefit_tier(req.tier) if req.tier else None
+    if not detected_email or not detected_tier:
+        raw_cookies_list = storage_state.get("cookies")
+        if isinstance(raw_cookies_list, list):
+            cookie_dict = {
+                str(c.get("name") or ""): str(c.get("value") or "")
+                for c in raw_cookies_list
+                if isinstance(c, dict) and c.get("name")
+            }
+            if cookie_dict:
+                if not detected_email:
+                    with contextlib.suppress(Exception):
+                        detected_email = await probe_account_email(
+                            cookie_dict,
+                            auth_user=req.auth_user or "0",
+                            proxy=req_egress,
+                        )
+                if not detected_tier:
+                    with contextlib.suppress(Exception):
+                        probed = await probe_account_benefit_tier(
+                            cookie_dict,
+                            auth_user=req.auth_user or "0",
+                            proxy=req_egress,
+                            default=None,
+                        )
+                        if probed:
+                            detected_tier = probed
+    detected_tier = detected_tier or "Free"
+    account = account_service.save_account_from_cookies(
+        name=name,
+        email=detected_email,
+        storage_state=storage_state,
+        account_id=req.account_id,
+        auth_user=req.auth_user or "0",
+        cookie_id=cid,
+        tier=detected_tier,
+        proxy_id=req.proxy_id or "",
+    )
+    if runtime_state.rotator:
+        runtime_state.rotator.add_account(account.id)
+        runtime_state.rotator.clear_cooldown(account.id)
+    gateway_session = runtime_state.client.session if runtime_state.client else None
+    active_acc = account_service.get_active_account()
+    if gateway_session is not None and (
+        not had_active_account or (active_acc and active_acc.id == account.id)
+    ):
+        await account_service.activate_account(account.id, gateway_session)
+    model_discovery.invalidate_cache()
+    return ImportCookiesResponse(
+        account_id=account.id,
+        name=account.name,
+        cookie_count=cookie_count,
+        auth_user=account.auth_user,
+        tier=account.tier,
+        proxy_id=account.proxy_id or "",
+    )
+
+
+@router.post("/probe-import", response_model=ProbeAndImportResponse)
+async def probe_and_import(
+    req: ProbeAndImportRequest,
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> ProbeAndImportResponse:
+    """探测 Cookie 中的多个已登录账号并批量导入。"""
+    from aistudio_api.infrastructure.account.cookie_parser import (
+        parse_cookie_string,
+        probe_google_accounts_infinite,
+    )
+
+    had_active_account = account_service.get_active_account() is not None
+    req_egress = resolve_egress(req.proxy_id)
+    probed = await probe_google_accounts_infinite(req.cookies, proxy=req_egress)
+    if not probed:
+        raise HTTPException(status_code=400, detail="未探测到有效已登录 Google 账号")
+
+    storage_state = parse_cookie_string(req.cookies)
+    prefix = req.name_prefix.strip() if req.name_prefix else "Google Account"
+    import secrets
+
+    cid = f"cookie_{secrets.token_hex(4)}"
+    metas = account_service.batch_import_accounts(
+        probed_list=probed,
+        storage_state=storage_state,
+        prefix=prefix,
+        cookie_id=cid,
+        proxy_id=req.proxy_id or "",
+    )
+    rotator = getattr(runtime_state, "rotator", None)
+    if rotator:
+        for meta in metas:
+            rotator.add_account(meta.id)
+            rotator.clear_cooldown(meta.id)
+
+    imported_accounts = [to_account_response(account) for account in metas]
+
+    client_obj = getattr(runtime_state, "client", None)
+    active_account = account_service.get_active_account()
+    imported_ids = {meta.id for meta in metas}
+    reload_id = (
+        metas[0].id
+        if not had_active_account and metas
+        else active_account.id
+        if active_account is not None and active_account.id in imported_ids
+        else None
+    )
+    if reload_id is not None and client_obj is not None:
+        gateway_session = client_obj.session
+        if gateway_session is not None:
+            await account_service.activate_account(reload_id, gateway_session)
+    model_discovery.invalidate_cache()
+    log.info("Cookie 探活完成: 导入账号数=%d", len(imported_accounts))
+    return ProbeAndImportResponse(
+        imported_count=len(imported_accounts),
+        accounts=imported_accounts,
+    )
+
+
+@router.post("/import-bundle", response_model=ImportBundleResponse)
+async def import_bundle(
+    req: ImportBundleRequest,
+    account_service: AccountService = Depends(get_account_service),
+    runtime_state: RuntimeState = Depends(get_runtime_state),
+) -> ImportBundleResponse:
+    """批量导入多个账号的凭据 Bundle（支持传入 JSON 文本、直接解析列表或服务器本地文件路径）。"""
+    import json
+    import secrets
+    from pathlib import Path
+
+    from aistudio_api.infrastructure.account.cookie_parser import parse_cookie_string
+
+    items_to_import: list[dict[str, object]] = []
+
+    def _extract_bundle_items(
+        raw_data: object, raw_text_source: str
+    ) -> list[dict[str, object]]:
+        extracted: list[dict[str, object]] = []
+        if isinstance(raw_data, list):
+            if raw_data and isinstance(raw_data[0], dict) and "cookies" in raw_data[0]:
+                for item in raw_data:
+                    if isinstance(item, dict) and item.get("cookies"):
+                        extracted.append(item)
+            elif (
+                raw_data
+                and isinstance(raw_data[0], dict)
+                and "name" in raw_data[0]
+                and "value" in raw_data[0]
+            ):
+                # 支持直接上传 Cookie-Editor 导出的单个 Cookie JSON 数组文件
+                extracted.append(
+                    {
+                        "name": "Google Account",
+                        "cookies": raw_text_source,
+                        "auth_user": "0",
+                    }
+                )
+        elif isinstance(raw_data, dict):
+            raw_list = raw_data.get("accounts") or raw_data.get("profiles")
+            if isinstance(raw_list, list):
+                for item in raw_list:
+                    if isinstance(item, dict) and item.get("cookies"):
+                        extracted.append(item)
+            elif raw_data.get("cookies") is not None:
+                raw_c = raw_data["cookies"]
+                extracted.append(
+                    {
+                        "name": raw_data.get("name") or "Google Account",
+                        "email": raw_data.get("email"),
+                        "cookies": raw_c
+                        if isinstance(raw_c, str)
+                        else json.dumps(raw_c),
+                        "auth_user": str(
+                            raw_data.get("auth_user") or raw_data.get("authUser") or "0"
+                        ),
+                        "tier": raw_data.get("tier") or raw_data.get("g1Tier"),
+                        "proxy_id": raw_data.get("proxy_id"),
+                    }
+                )
+        return extracted
+
+    if req.accounts:
+        for a in req.accounts:
+            items_to_import.append(
+                {
+                    "name": a.name or "Google Account",
+                    "email": a.email,
+                    "cookies": a.cookies,
+                    "auth_user": a.auth_user or "0",
+                    "tier": a.tier,
+                }
+            )
+    elif req.content:
+        try:
+            raw_data = json.loads(req.content)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"JSON 内容解析失败: {e}"
+            ) from e
+        items_to_import.extend(_extract_bundle_items(raw_data, req.content))
+    elif req.file_path:
+        raw_fpath = req.file_path.strip()
+        fpath = Path(raw_fpath).expanduser().resolve()
+        if fpath.suffix.lower() != ".json":
+            raise HTTPException(
+                status_code=400, detail="仅支持导入 .json 格式的凭据文件"
+            )
+        if not fpath.is_file():
+            raise HTTPException(status_code=404, detail="指定的凭据文件不存在")
+        try:
+            if fpath.stat().st_size > 16 * 1024 * 1024:
+                raise HTTPException(
+                    status_code=400, detail="凭据文件大小超出 16MB 限制"
+                )
+            raw_text = fpath.read_text(encoding="utf-8")
+            raw_data = json.loads(raw_text)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"读取或解析文件失败: {e}"
+            ) from e
+        items_to_import.extend(_extract_bundle_items(raw_data, raw_text))
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="请提供 accounts 列表、content JSON 文本或 file_path 本地文件路径",
+        )
+
+    if not items_to_import:
+        raise HTTPException(
+            status_code=400, detail="未解析到任何包含有效 cookies 的账号条目"
+        )
+
+    had_active_account = account_service.get_active_account() is not None
+    imported_accounts: list[AccountResponse] = []
+    for idx, item in enumerate(items_to_import):
+        raw_cookie_str = str(item.get("cookies") or "")
+        if not raw_cookie_str:
+            continue
+        storage_state = parse_cookie_string(raw_cookie_str)
+        if not storage_state.get("cookies"):
+            continue
+
+        acc_name = str(item.get("name") or f"Account {idx + 1}")
+        acc_email = str(item["email"]) if item.get("email") else None
+        acc_auth_user = str(item.get("auth_user") or item.get("authUser") or "0")
+        acc_proxy_id = str(item.get("proxy_id") or "")
+        acc_egress = resolve_egress(acc_proxy_id)
+        raw_item_tier = item.get("tier") or item.get("g1Tier")
+        acc_tier = normalize_benefit_tier(str(raw_item_tier)) if raw_item_tier else ""
+        if not acc_email or not acc_tier:
+            raw_cookies_list = storage_state.get("cookies")
+            if isinstance(raw_cookies_list, list):
+                cookie_dict = {
+                    str(c.get("name") or ""): str(c.get("value") or "")
+                    for c in raw_cookies_list
+                    if isinstance(c, dict) and c.get("name")
+                }
+                if cookie_dict:
+                    if not acc_email:
+                        with contextlib.suppress(Exception):
+                            acc_email = await probe_account_email(
+                                cookie_dict,
+                                auth_user=acc_auth_user,
+                                proxy=acc_egress,
+                            )
+                    if not acc_tier:
+                        with contextlib.suppress(Exception):
+                            probed = await probe_account_benefit_tier(
+                                cookie_dict,
+                                auth_user=acc_auth_user,
+                                proxy=acc_egress,
+                                default=None,
+                            )
+                            if probed:
+                                acc_tier = probed
+        acc_tier = acc_tier or "Free"
+        cid = f"cookie_{secrets.token_hex(4)}"
+
+        account = account_service.save_account_from_cookies(
+            name=acc_name,
+            email=acc_email,
+            storage_state=storage_state,
+            auth_user=acc_auth_user,
+            cookie_id=cid,
+            tier=acc_tier,
+            proxy_id=acc_proxy_id,
+        )
+        rotator = getattr(runtime_state, "rotator", None)
+        if rotator:
+            rotator.add_account(account.id)
+            rotator.clear_cooldown(account.id)
+        imported_accounts.append(to_account_response(account))
+    active_account = account_service.get_active_account()
+    imported_ids = {account.id for account in imported_accounts}
+    reload_id = (
+        imported_accounts[0].id
+        if not had_active_account and imported_accounts
+        else active_account.id
+        if active_account is not None and active_account.id in imported_ids
+        else None
+    )
+    if reload_id is not None:
+        account_service.set_active_account(reload_id)
+        client_obj = getattr(runtime_state, "client", None)
+        if client_obj is not None and client_obj.session is not None:
+            await account_service.activate_account(reload_id, client_obj.session)
+    model_discovery.invalidate_cache()
+    log.info("批量导入完成: 导入账号数=%d", len(imported_accounts))
+    return ImportBundleResponse(
+        imported_count=len(imported_accounts),
+        accounts=imported_accounts,
+    )
